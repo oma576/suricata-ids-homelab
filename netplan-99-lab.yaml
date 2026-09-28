@@ -1,0 +1,15 @@
+# /etc/netplan/99-lab.yaml
+# Static IP for the Suricata IDS VM on the VirtualBox NAT Network "LabNet".
+# Replaced a DHCP address (10.0.2.3) that conflicted with VirtualBox's built-in NAT service.
+# Apply with: sudo chmod 600 /etc/netplan/99-lab.yaml && sudo netplan apply
+network:
+  version: 2
+  ethernets:
+    enp0s3:
+      dhcp4: false
+      addresses: [10.0.2.10/24]
+      routes:
+        - to: default
+          via: 10.0.2.1
+      nameservers:
+        addresses: [8.8.8.8]
