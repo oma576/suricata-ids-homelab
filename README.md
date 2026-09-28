@@ -58,11 +58,11 @@ sudo suricata-update          # downloads the Emerging Threats Open ruleset
 
 `suricata-update` loaded **52,990 enabled rules** from the ET Open ruleset.
 
-![Suricata installed and running](screenshots/01-suricata-installed.png)
+![Suricata installed and running](01-suricata-installed.png)
 
 ### 2. Configure Suricata
 
-Changes to `/etc/suricata/suricata.yaml` (details in [`configs/suricata-yaml-changes.md`](configs/suricata-yaml-changes.md)):
+Changes to `/etc/suricata/suricata.yaml` (details in [`suricata-yaml-changes.md`](suricata-yaml-changes.md)):
 
 - Set the capture interface from the default `eth0` to the VM's real interface, `enp0s3`
 - Added my custom rules file to `rule-files`
@@ -79,13 +79,13 @@ sudo systemctl restart suricata
 
 - Created a VirtualBox **NAT Network** called `LabNet` (10.0.2.0/24)
 - Set the Ubuntu IDS adapter to **Promiscuous Mode: Allow All**, so Suricata sees traffic between *other* VMs, not just traffic addressed to itself
-- Gave the IDS a **static IP** (10.0.2.10) with Netplan; see [`configs/netplan-99-lab.yaml`](configs/netplan-99-lab.yaml)
+- Gave the IDS a **static IP** (10.0.2.10) with Netplan; see [`netplan-99-lab.yaml`](netplan-99-lab.yaml)
 
 ---
 
 ## Custom detection rules
 
-Full file: [`rules/local.rules`](rules/local.rules)
+Full file: [`local.rules`](local.rules)
 
 ```
 alert icmp any any -> any any (msg:"LAB - ICMP Ping Detected"; itype:8; sid:1000001; rev:1;)
@@ -99,7 +99,7 @@ alert tcp any any -> $HOME_NET any (msg:"LAB - Nmap Stealth Scan Detected"; flag
 
 The first version of the rules file (before tuning the scan rule to rev 2):
 
-![Custom rules file](screenshots/02-custom-rules.png)
+![Custom rules file](02-custom-rules.png)
 
 ---
 
@@ -109,7 +109,7 @@ The first version of the rules file (before tuning the scan rule to rev 2):
 
 Pinged an external host from the IDS and confirmed the custom ICMP rule alerted.
 
-![ICMP rule firing](screenshots/03-ping-detected.png)
+![ICMP rule firing](03-ping-detected.png)
 
 ### Test 2: Detecting a SYN scan from Kali
 
@@ -119,17 +119,17 @@ sudo nmap -sS 10.0.2.10      # from Kali
 
 Suricata logged the scan, attributing it to Kali (10.0.2.4). The Kali output below shows both scans: the first hit the wrong device (see Troubleshooting #3), and the second hit the IDS itself, confirmed by its MAC address `08:00:27:8E:55:7E`.
 
-![Nmap scan from Kali](screenshots/07-nmap-scan-kali.png)
+![Nmap scan from Kali](07-nmap-scan-kali.png)
 
 ### Test 3: Rule tuning to reduce alert fatigue
 
 The first version of the scan rule used `threshold: type threshold`, which fires **every** time the count is reached. One scan of 1,000 ports produced **hundreds of duplicate alerts**:
 
-![Alert flood before tuning](screenshots/06-scan-alert-flood.png)
+![Alert flood before tuning](06-scan-alert-flood.png)
 
 I changed it to `type both` (alert once when the threshold is reached, then suppress for the rest of the time window) and bumped the revision to `rev:2`. The same scan now produces **one alert**:
 
-![Single alert after tuning](screenshots/08-tuned-rule-1-alert.png)
+![Single alert after tuning](08-tuned-rule-1-alert.png)
 
 The `[1:1000002:2]` in the alert confirms Suricata is running revision 2 of the rule.
 
@@ -139,8 +139,8 @@ The `[1:1000002:2]` in the alert confirms Suricata is running revision 2 of the 
 
 Kali scanned Metasploitable (10.0.2.4 → 10.0.2.5). The IDS at 10.0.2.10 was not involved in the traffic, but still detected it thanks to promiscuous mode, which is how a real network IDS or SPAN-port sensor works.
 
-![Metasploitable open ports](screenshots/09-metasploitable-open-ports.png)
-![IDS detects scan on victim](screenshots/10-ids-detects-scan-on-victim.png)
+![Metasploitable open ports](09-metasploitable-open-ports.png)
+![IDS detects scan on victim](10-ids-detects-scan-on-victim.png)
 
 The scan also showed Metasploitable's large **attack surface**: about 23 open services, including FTP, Telnet, SSH, HTTP, MySQL, PostgreSQL and VNC. On a production server, most of these would be closed or firewalled.
 
@@ -177,11 +177,11 @@ MAC Address: 52:54:00:12:35:00 (QEMU virtual NIC)
 
 The IDS's real MAC is `08:00:27:8e:55:7e`, and it runs no DNS server. The scan had hit **VirtualBox's built-in NAT Network service**, which also answers on 10.0.2.3. Two devices were sharing one IP.
 
-![Scan hit the wrong MAC](screenshots/04-ip-conflict-wrong-mac.png)
+![Scan hit the wrong MAC](04-ip-conflict-wrong-mac.png)
 
 **Fix:** assigned the IDS a static IP outside the conflict (10.0.2.10) with Netplan, then re-scanned and confirmed the MAC matched the Ubuntu VM.
 
-![Static IP applied](screenshots/05-static-ip.png)
+![Static IP applied](05-static-ip.png)
 
 **Lesson:** an IP address tells you where traffic *goes*; the MAC address tells you *what answered*. Checking it caught a problem that alerts alone would have hidden.
 
@@ -208,18 +208,15 @@ The VirtualBox wizard didn't attach the existing `Metasploitable.vmdk` disk. **F
 
 ---
 
-## Repository layout
+## Repository contents
 
-```
-suricata-ids-homelab/
-├── README.md
-├── rules/
-│   └── local.rules              # custom detection rules
-├── configs/
-│   ├── netplan-99-lab.yaml      # static IP for the IDS
-│   └── suricata-yaml-changes.md # changes made to suricata.yaml
-└── screenshots/                 # evidence for each test
-```
+| File | What it is |
+|---|---|
+| `README.md` | This write-up |
+| `local.rules` | Custom Suricata detection rules |
+| `netplan-99-lab.yaml` | Static IP config for the IDS |
+| `suricata-yaml-changes.md` | Changes made to `suricata.yaml` |
+| `01-...png` to `10-...png` | Screenshots used as evidence above |
 
 ## Credits
 
